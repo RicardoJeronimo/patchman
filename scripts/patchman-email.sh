@@ -13,3 +13,4 @@ echo "$(date '+%d/%m/%Y %R') [INFO] Generating reports" >> $LOGDIR/patchman-emai
 patchman-email -T tag >> $LOGDIR/tag.log
 patchman-email -T tag2 >> $LOGDIR/tag2.log
 patchman-email -T tag3 >> $LOGDIR/tag3.log
+
