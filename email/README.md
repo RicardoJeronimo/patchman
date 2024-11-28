@@ -37,4 +37,3 @@ patchman-email [-a] [-H hostname] [-T tag] [-h]
 
 -h: Shows this help message and exits
 ```
-
