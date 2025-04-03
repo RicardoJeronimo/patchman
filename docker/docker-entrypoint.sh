@@ -17,35 +17,35 @@ if [ ! -z "${DB_ENGINE}" ]; then
         if [ "${DB_ENGINE}" == "MySQL" ]; then
             cat <<-EOF >> /etc/patchman/local_settings.py
 
-			DATABASES = {
-			    'default': {
-			        'ENGINE': 'django.db.backends.mysql',
-			        'NAME': '${DB_DATABASE}',
-			        'USER': '${DB_USER}',
-			        'PASSWORD': '${DB_PASSWORD}',
-			        'HOST': '${DB_HOST}',
-			        'PORT': '${DB_PORT}',
-			        'STORAGE_ENGINE': 'INNODB',
-			        'CHARSET' : 'utf8'
-			    }
-			}
-			EOF
+                        DATABASES = {
+                            'default': {
+                                'ENGINE': 'django.db.backends.mysql',
+                                'NAME': '${DB_DATABASE}',
+                                'USER': '${DB_USER}',
+                                'PASSWORD': '${DB_PASSWORD}',
+                                'HOST': '${DB_HOST}',
+                                'PORT': '${DB_PORT}',
+                                'STORAGE_ENGINE': 'INNODB',
+                                'CHARSET' : 'utf8'
+                            }
+                        }
+                        EOF
 
         elif [ "${DB_ENGINE}" == "PostgreSQL" ]; then
             cat <<-EOF >> /etc/patchman/local_settings.py
 
-			DATABASES = {
-			    'default': {
-			        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-			        'NAME': '${DB_DATABASE}',
-			        'USER': '${DB_USER}',
-			        'PASSWORD': '${DB_PASSWORD}',
-			        'HOST': '${DB_HOST}',
-			        'PORT': '${DB_PORT}',
-			        'CHARSET' : 'utf8'
-			    }
-			}
-			EOF
+                        DATABASES = {
+                            'default': {
+                                'ENGINE': 'django.db.backends.postgresql_psycopg2',
+                                'NAME': '${DB_DATABASE}',
+                                'USER': '${DB_USER}',
+                                'PASSWORD': '${DB_PASSWORD}',
+                                'HOST': '${DB_HOST}',
+                                'PORT': '${DB_PORT}',
+                                'CHARSET' : 'utf8'
+                            }
+                        }
+                        EOF
         fi
     fi
 fi
@@ -55,10 +55,10 @@ if [ ! -z "${TIMEZONE}" ]; then
     sed -i '18 {s/America\/New_York/'"${TIMEZONE/\//\\/}"'/}' /etc/patchman/local_settings.py
 fi
 
-# Configure SECRET_KEY 
-if [ -z $(grep "SECRET_KEY" /etc/patchman/local_settings.py | cut -d " " -f 3 | tr -d "'") ]; then 
+# Configure SECRET_KEY
+if [ -z $(grep "SECRET_KEY" /etc/patchman/local_settings.py | cut -d " " -f 3 | tr -d "'") ]; then
     if [ ! -z "${SECRET_KEY}" ]; then
-        sed -i "s/SECRET_KEY = ''/SECRET_KEY = '"${SECRET_KEY}"'/g" /etc/patchman/local_settings.py 
+        sed -i "s/SECRET_KEY = ''/SECRET_KEY = '"${SECRET_KEY}"'/g" /etc/patchman/local_settings.py
     else
         patchman-set-secret-key
     fi
@@ -74,7 +74,7 @@ if [ ! -z "${MEMCACHED_ADDR}" ]; then
         memcachedPort="11211"
     fi
 
-    sed -i "s/'LOCATION': '127.0.0.1:11211'/'LOCATION': '"$memcachedAddr":"$memcachedPort"'/g" /etc/patchman/local_settings.py 
+    sed -i "s/'LOCATION': '127.0.0.1:11211'/'LOCATION': '"$memcachedAddr":"$memcachedPort"'/g" /etc/patchman/local_settings.py
 else
     sed -i '41,49 {/^#/ ! s/\(.*\)/#\1/}' /etc/patchman/local_settings.py
 fi
@@ -103,12 +103,12 @@ if [ ! -z "${CELERY_BROKER}" ]; then
         brokerPort=6379
     fi
 
-    if [ -z $(grep "USE_ASYNC_PROCESSING" /etc/patchman/local_settings.py | cut -d " " -f 3 | tr -d "'") ]; then 
+    if [ -z $(grep "USE_ASYNC_PROCESSING" /etc/patchman/local_settings.py | cut -d " " -f 3 | tr -d "'") ]; then
         echo "" >> /etc/patchman/local_settings.py
         echo "USE_ASYNC_PROCESSING = True" >> /etc/patchman/local_settings.py
     fi
 
-    if [ -z $(grep "CELERY_BROKER_URL" /etc/patchman/local_settings.py | cut -d " " -f 3 | tr -d "'") ]; then 
+    if [ -z $(grep "CELERY_BROKER_URL" /etc/patchman/local_settings.py | cut -d " " -f 3 | tr -d "'") ]; then
         echo "CELERY_BROKER_URL = 'redis://"$broker":"$brokerPort"/0'" >> /etc/patchman/local_settings.py
     fi
 
