@@ -1,19 +1,25 @@
 FROM debian:bookworm-slim
 
-RUN apt update \
-    && apt install -y curl mariadb-client python-celery-common python3-celery python3-mysqldb python3-pymemcache python3-redis sendmail sharutils uuid-runtime weasyprint
+RUN apt -y update && apt -y upgrade
+RUN apt install -y apache2 libapache2-mod-wsgi-py3 mariadb-client python-celery-common python3-celery python3-debian python3-defusedxml python3-lxml python3-mysqldb python3-pip python3-progressbar python3-psycopg2 python3-redis python3-rpm sendmail sharutils uuid-runtime weasyprint
 
-RUN curl -sS https://repo.openbytes.ie/openbytes.gpg > /usr/share/keyrings/openbytes.gpg
-RUN echo "deb [signed-by=/usr/share/keyrings/openbytes.gpg] https://repo.openbytes.ie/patchman/debian bookworm main" > /etc/apt/sources.list.d/patchman.list
+WORKDIR /srv/patchman
 
-RUN apt update \
-    && apt install -y python3-patchman
+COPY . /srv/patchman/
+COPY ./etc/patchman/apache.conf.example /etc/apache2/sites-available/patchman.conf
 
-RUN curl -sS https://raw.githubusercontent.com/RicardoJeronimo/patchman/master/email/patchman-email > /usr/bin/patchman-email \
-    && curl -sS https://raw.githubusercontent.com/RicardoJeronimo/patchman/master/etc/patchman/patchman-email.conf > /etc/patchman/patchman-email.conf
-RUN chmod +x /usr/bin/patchman-email
+RUN /srv/patchman/setup.py install
+
+COPY ./etc/patchman/patchman-email.conf /etc/patchman/
+COPY /srv/patchman/email/patchman-email /usr/bin/patchman-email
+
+RUN a2enmod wsgi
+RUN a2ensite patchman
+
+RUN mkdir -p /var/lib/patchman/db
+RUN chown :www-data /var/lib/patchman/db && chmod 2770 /var/lib/patchman/db
 
 EXPOSE 80
 
-COPY ./docker-entrypoint.sh docker-entrypoint.sh
-ENTRYPOINT ./docker-entrypoint.sh
+COPY ./docker/docker-entrypoint.sh docker-entrypoint.sh
+ENTRYPOINT ["./docker-entrypoint.sh"]
