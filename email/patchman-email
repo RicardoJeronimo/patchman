@@ -146,7 +146,7 @@ report() {
 			<html><style>
 			body { font-family: "Calibri" }
 			#details table { border-collapse: collapse; width: 20em; white-space: nowrap; }
-            #details table tr:nth-child(1) { font-size: 1.5em; text-decoration: underline; }
+			#details table tr:nth-child(1) { font-size: 1.5em; text-decoration: underline; }
 			#updates table { border-collapse: collapse; width: 100%; }
 			#details th, #details tr, #details td { text-align: left; }
 			#updates th, #updates td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
