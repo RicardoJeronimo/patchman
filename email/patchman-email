@@ -187,11 +187,11 @@ if [ $# -gt 0 ] && [[ $1 == -* ]]; then
     custom_html="/etc/patchman/patchman-email.html"
     
     # Database credentials configured in /etc/patchman/local_settings.py
-    mysql_db=$(grep -E "'NAME'" /etc/patchman/local_settings.py | grep -v "#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
-    mysql_user=$(grep -E "'USER'" /etc/patchman/local_settings.py | grep -v "#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
-    mysql_pass=$(grep -E "'PASSWORD'" /etc/patchman/local_settings.py | grep -v "#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
-    mysql_host=$(grep -E "'HOST'" /etc/patchman/local_settings.py | grep -v "#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
-    mysql_port=$(grep -E "'PORT'" /etc/patchman/local_settings.py | grep -v "#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
+    mysql_db=$(grep -E "'NAME'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
+    mysql_user=$(grep -E "'USER'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
+    mysql_pass=$(grep -E "'PASSWORD'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
+    mysql_host=$(grep -E "'HOST'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
+    mysql_port=$(grep -E "'PORT'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
     
     while getopts 'aH:T:h' arg; do
         case $arg in
