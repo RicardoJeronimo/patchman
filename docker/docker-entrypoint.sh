@@ -105,6 +105,12 @@ if "${USE_CACHE}"; then
     fi
 fi
 
+# Set sendmail destination
+if [ -n "${MTA_HOST}" ]; then
+    echo "define(\`SMART_HOST', \`[$MTA_HOST]')dnl" >> /etc/mail/submit.mc
+    m4 /etc/mail/submit.mc > /etc/mail/submit.cf
+fi
+
 # Sync database on container first start
 if [ ! -f /var/lib/patchman/.firstrun ]; then
     patchman-manage makemigrations
