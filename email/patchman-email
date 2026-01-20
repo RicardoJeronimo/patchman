@@ -1,5 +1,15 @@
 #!/bin/bash
 
+checkDependencies() {
+    dependencies=("mysql" "patchman" "sendmail" "uuencode" "uuidgen" "weasyprint")
+
+    for dep in "${dependencies[@]}"; do
+        if [ ! "$(command -v "$dep")" ]; then
+            fatal "[ERROR] Command $dep not installed."
+        fi
+    done
+}
+
 email() {
     SENDER=$(getConfig General sender)
 
@@ -189,6 +199,8 @@ usage() {
 
 proc=$$
 trap 'exit 1' SIGUSR1
+
+checkDependencies
 
 # Checks if there are any parameters and if they start with "-"
 if [ $# -gt 0 ] && [[ $1 == -* ]]; then
