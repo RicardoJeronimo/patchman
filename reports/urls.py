@@ -23,6 +23,7 @@ app_name = 'reports'
 
 urlpatterns = [
     path('', views.report_list, name='report_list'),
+    path('bulk_action/', views.report_bulk_action, name='report_bulk_action'),
     path('upload/', views.upload),
     path('<int:report_id>/', views.report_detail, name='report_detail'),
     path('<int:report_id>/delete/', views.report_delete, name='report_delete'),

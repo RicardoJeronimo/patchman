@@ -1,7 +1,7 @@
 # Copyright 2012 VPAC, http://www.vpac.org
 # Copyright 2013-2021 Marcus Furlong <furlongm@gmail.com>
 #
-# This file is part of patchman
+# This file is part of Patchman.
 #
 # Patchman is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ from errata import views as errata_views
 from hosts import views as host_views
 from operatingsystems import views as os_views
 from packages import views as package_views
+from reports import views as report_views
 from repos import views as repo_views
 from security import views as security_views
 
@@ -43,11 +44,13 @@ router.register(r'package-name', package_views.PackageNameViewSet)
 router.register(r'package', package_views.PackageViewSet)
 router.register(r'package-update', package_views.PackageUpdateViewSet)
 router.register(r'cve', security_views.CVEViewSet)
+router.register(r'cwe', security_views.CWEViewSet)
 router.register(r'reference', security_views.ReferenceViewSet)
 router.register(r'erratum', errata_views.ErratumViewSet)
 router.register(r'repo', repo_views.RepositoryViewSet)
 router.register(r'mirror', repo_views.MirrorViewSet)
 router.register(r'mirror-package', repo_views.MirrorPackageViewSet)
+router.register(r'report', report_views.ReportViewSet, basename='report')
 
 admin.autodiscover()
 
@@ -56,6 +59,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),  # noqa
+    path('select2/', include('django_select2.urls')),
     path('', include('util.urls', namespace='util')),
     path('errata/', include('errata.urls', namespace='errata')),
     path('reports/', include('reports.urls', namespace='reports')),

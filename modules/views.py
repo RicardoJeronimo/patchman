@@ -15,19 +15,20 @@
 # along with Patchman. If not, see <http://www.gnu.org/licenses/>
 
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
+from django_tables2 import RequestConfig
 from rest_framework import permissions, viewsets
 
 from modules.models import Module
 from modules.serializers import ModuleSerializer
+from modules.tables import ModuleTable
 
 
 @login_required
 def module_list(request):
 
-    modules = Module.objects.select_related()
+    modules = Module.objects.select_related('arch', 'repo')
 
     if 'search' in request.GET:
         terms = request.GET['search'].lower()
@@ -39,19 +40,12 @@ def module_list(request):
     else:
         terms = ''
 
-    page_no = request.GET.get('page')
-    paginator = Paginator(modules, 50)
-
-    try:
-        page = paginator.page(page_no)
-    except PageNotAnInteger:
-        page = paginator.page(1)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages)
+    table = ModuleTable(modules)
+    RequestConfig(request, paginate={'per_page': 50}).configure(table)
 
     return render(request,
                   'modules/module_list.html',
-                  {'page': page,
+                  {'table': table,
                    'terms': terms})
 
 
@@ -68,6 +62,6 @@ class ModuleViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows modules to be viewed or edited.
     """
-    queryset = Module.objects.all()
+    queryset = Module.objects.select_related('arch', 'repo').all()
     serializer_class = ModuleSerializer
     permission_classes = (permissions.IsAuthenticatedOrReadOnly,)

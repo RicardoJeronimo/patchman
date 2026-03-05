@@ -15,14 +15,16 @@
 # You should have received a copy of the GNU General Public License
 # along with Patchman. If not, see <http://www.gnu.org/licenses/>
 
+from urllib.parse import parse_qs
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import IntegrityError
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django_tables2 import RequestConfig
 from rest_framework import viewsets
 
 from arch.models import MachineArchitecture
@@ -35,13 +37,16 @@ from repos.models import Mirror, MirrorPackage, Repository
 from repos.serializers import (
     MirrorPackageSerializer, MirrorSerializer, RepositorySerializer,
 )
+from repos.tables import MirrorTable, RepositoryTable
+from repos.tasks import refresh_repo
+from util import sanitize_filter_params
 from util.filterspecs import Filter, FilterBar
 
 
 @login_required
 def repo_list(request):
 
-    repos = Repository.objects.select_related().order_by('name')
+    repos = Repository.objects.select_related('arch').order_by('name')
 
     if 'repotype' in request.GET:
         repos = repos.filter(repotype=request.GET['repotype'])
@@ -75,16 +80,6 @@ def repo_list(request):
 
     repos = repos.distinct()
 
-    page_no = request.GET.get('page')
-    paginator = Paginator(repos, 50)
-
-    try:
-        page = paginator.page(page_no)
-    except PageNotAnInteger:
-        page = paginator.page(1)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages)
-
     filter_list = []
     filter_list.append(Filter(request, 'OS Release', 'osrelease_id', OSRelease.objects.filter(repos__in=repos)))
     filter_list.append(Filter(request, 'Enabled', 'enabled', {'true': 'Yes', 'false': 'No'}))
@@ -94,11 +89,29 @@ def repo_list(request):
                               MachineArchitecture.objects.filter(repository__in=repos)))
     filter_bar = FilterBar(request, filter_list)
 
+    table = RepositoryTable(repos)
+    RequestConfig(request, paginate={'per_page': 50}).configure(table)
+
+    # Build filter params string for "select all filtered" option
+    filter_params = sanitize_filter_params(request.GET.urlencode())
+
+    bulk_actions = [
+        {'value': 'enable', 'label': 'Enable'},
+        {'value': 'disable', 'label': 'Disable'},
+        {'value': 'mark_security', 'label': 'Mark as Security'},
+        {'value': 'mark_non_security', 'label': 'Mark as Non-Security'},
+        {'value': 'refresh', 'label': 'Refresh'},
+        {'value': 'delete', 'label': 'Delete'},
+    ]
+
     return render(request,
                   'repos/repo_list.html',
-                  {'page': page,
+                  {'table': table,
                    'filter_bar': filter_bar,
-                   'terms': terms})
+                   'terms': terms,
+                   'total_count': repos.count(),
+                   'filter_params': filter_params,
+                   'bulk_actions': bulk_actions})
 
 
 @login_required
@@ -110,15 +123,19 @@ def mirror_list(request):
                 text = 'Not all mirror architectures are the same,'
                 text += ' cannot link to or create repos'
                 messages.info(request, text)
-                return render(request, 'repos/mirror_with_repo_list.html', {'page': page, 'checksum': checksum})
+                table = MirrorTable(mirrors)
+                RequestConfig(request, paginate={'per_page': 50}).configure(table)
+                return render(request, 'repos/mirror_with_repo_list.html', {'table': table, 'checksum': checksum})
 
             if mirror.repo.repotype != repotype:
                 text = 'Not all mirror repotypes are the same,'
                 text += ' cannot link to or create repos'
                 messages.info(request, text)
+                table = MirrorTable(mirrors)
+                RequestConfig(request, paginate={'per_page': 50}).configure(table)
                 return render(request,
                               'repos/mirror_with_repo_list.html',
-                              {'page': page, 'checksum': checksum})
+                              {'table': table, 'checksum': checksum})
         return True
 
     def move_mirrors(repo):
@@ -132,10 +149,11 @@ def mirror_list(request):
                     hostrepo.delete()
             mirror.repo = repo
             mirror.save()
-            if oldrepo.mirror_set.count() == 0:
+            if not oldrepo.mirror_set.exists():
                 oldrepo.delete()
 
-    mirrors = Mirror.objects.select_related().order_by('packages_checksum')
+    # Use cached packages_count instead of expensive annotation
+    mirrors = Mirror.objects.select_related('repo').order_by('packages_checksum')
 
     checksum = None
     if 'checksum' in request.GET:
@@ -159,16 +177,6 @@ def mirror_list(request):
         terms = ''
 
     mirrors = mirrors.distinct()
-
-    page_no = request.GET.get('page')
-    paginator = Paginator(mirrors, 50)
-
-    try:
-        page = paginator.page(page_no)
-    except PageNotAnInteger:
-        page = paginator.page(1)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages)
 
     if request.method == 'POST':
         arch = mirrors[0].repo.arch
@@ -208,15 +216,35 @@ def mirror_list(request):
             else:
                 link_form = LinkRepoForm(prefix='link')
                 create_form = CreateRepoForm(prefix='create')
+                table = MirrorTable(mirrors)
+                RequestConfig(request, paginate={'per_page': 50}).configure(table)
                 return render(request,
                               'repos/mirror_with_repo_list.html',
-                              {'page': page,
+                              {'table': table,
                                'link_form': link_form,
                                'create_form': create_form,
                                'checksum': checksum})
+
+    table = MirrorTable(mirrors)
+    RequestConfig(request, paginate={'per_page': 50}).configure(table)
+
+    filter_params = sanitize_filter_params(request.GET.urlencode())
+    bulk_actions = [
+        {'value': 'edit', 'label': 'Edit'},
+        {'value': 'enable', 'label': 'Enable'},
+        {'value': 'disable', 'label': 'Disable'},
+        {'value': 'enable_refresh', 'label': 'Enable Refresh'},
+        {'value': 'disable_refresh', 'label': 'Disable Refresh'},
+        {'value': 'delete', 'label': 'Delete'},
+    ]
+
     return render(request,
                   'repos/mirror_list.html',
-                  {'page': page})
+                  {'table': table,
+                   'terms': terms,
+                   'total_count': mirrors.count(),
+                   'filter_params': filter_params,
+                   'bulk_actions': bulk_actions})
 
 
 @login_required
@@ -293,9 +321,7 @@ def repo_edit(request, repo_id):
                 repo = edit_form.save()
                 repo.save()
                 mirrors = edit_form.cleaned_data['mirrors']
-                for mirror in mirrors:
-                    mirror.repo = repo
-                    mirror.save()
+                mirrors.update(repo=repo)
                 if repo.enabled:
                     repo.enable()
                 else:
@@ -348,7 +374,7 @@ def repo_toggle_enabled(request, repo_id):
         repo.enabled = True
         status = 'enabled'
     repo.save()
-    if request.is_ajax():
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return HttpResponse(status=204)
     else:
         text = f'Repository {repo} has been {status}'
@@ -367,7 +393,7 @@ def repo_toggle_security(request, repo_id):
         repo.security = True
         sectype = 'security'
     repo.save()
-    if request.is_ajax():
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return HttpResponse(status=204)
     else:
         text = f'Repository {repo} has been marked'
@@ -380,7 +406,6 @@ def repo_toggle_security(request, repo_id):
 def repo_refresh(request, repo_id):
     """ Refresh a repo using a celery task
     """
-    from repos.tasks import refresh_repo
     repo = get_object_or_404(Repository, id=repo_id)
     refresh_repo.delay(repo.id)
     text = f'Repostory {repo} is being refreshed'
@@ -388,11 +413,182 @@ def repo_refresh(request, repo_id):
     return redirect(repo.get_absolute_url())
 
 
+def _get_filtered_repos(filter_params):
+    """Helper to reconstruct filtered queryset from filter params."""
+    params = parse_qs(filter_params)
+
+    repos = Repository.objects.select_related('arch').order_by('name')
+
+    if 'repotype' in params:
+        repos = repos.filter(repotype=params['repotype'][0])
+    if 'arch_id' in params:
+        repos = repos.filter(arch=params['arch_id'][0])
+    if 'osrelease_id' in params:
+        repos = repos.filter(osrelease=params['osrelease_id'][0])
+    if 'security' in params:
+        security = params['security'][0] == 'true'
+        repos = repos.filter(security=security)
+    if 'enabled' in params:
+        enabled = params['enabled'][0] == 'true'
+        repos = repos.filter(enabled=enabled)
+    if 'package_id' in params:
+        repos = repos.filter(mirror__packages=params['package_id'][0])
+    if 'search' in params:
+        terms = params['search'][0].lower()
+        query = Q()
+        for term in terms.split(' '):
+            q = Q(name__icontains=term)
+            query = query & q
+        repos = repos.filter(query)
+
+    return repos.distinct()
+
+
+@login_required
+def repo_bulk_action(request):
+    """Handle bulk actions on repositories."""
+    if request.method != 'POST':
+        return redirect('repos:repo_list')
+
+    action = request.POST.get('action', '')
+    select_all_filtered = request.POST.get('select_all_filtered') == '1'
+    filter_params = request.POST.get('filter_params', '')
+
+    if not action:
+        messages.warning(request, 'Please select an action')
+        if filter_params:
+            return redirect(f"{reverse('repos:repo_list')}?{filter_params}")
+        return redirect('repos:repo_list')
+
+    if select_all_filtered:
+        repos = _get_filtered_repos(filter_params)
+    else:
+        selected_ids = request.POST.getlist('selected_ids')
+        if not selected_ids:
+            messages.warning(request, 'No repositories selected')
+            if filter_params:
+                return redirect(f"{reverse('repos:repo_list')}?{filter_params}")
+            return redirect('repos:repo_list')
+        repos = Repository.objects.filter(id__in=selected_ids)
+
+    count = repos.count()
+    name = Repository._meta.verbose_name if count == 1 else Repository._meta.verbose_name_plural
+
+    if action == 'enable':
+        repos.update(enabled=True)
+        messages.success(request, f'Enabled {count} {name}')
+    elif action == 'disable':
+        repos.update(enabled=False)
+        messages.success(request, f'Disabled {count} {name}')
+    elif action == 'mark_security':
+        repos.update(security=True)
+        messages.success(request, f'Marked {count} {name} as security')
+    elif action == 'mark_non_security':
+        repos.update(security=False)
+        messages.success(request, f'Marked {count} {name} as non-security')
+    elif action == 'refresh':
+        for repo in repos:
+            refresh_repo.delay(repo.id)
+        messages.success(request, f'Queued {count} {name} for refresh')
+    elif action == 'delete':
+        repos.delete()
+        messages.success(request, f'Deleted {count} {name}')
+    else:
+        messages.warning(request, 'Invalid action')
+
+    # Preserve filter params when redirecting
+    if filter_params:
+        return redirect(f"{reverse('repos:repo_list')}?{filter_params}")
+    return redirect('repos:repo_list')
+
+
+def _get_filtered_mirrors(filter_params):
+    """Helper to reconstruct filtered queryset from filter params."""
+    params = parse_qs(filter_params)
+
+    mirrors = Mirror.objects.select_related('repo').order_by('packages_checksum')
+
+    if 'checksum' in params:
+        mirrors = mirrors.filter(packages_checksum=params['checksum'][0])
+    if 'repo_id' in params:
+        mirrors = mirrors.filter(repo=params['repo_id'][0])
+    if 'search' in params:
+        terms = params['search'][0].lower()
+        query = Q()
+        for term in terms.split(' '):
+            q = Q(url__icontains=term)
+            query = query & q
+        mirrors = mirrors.filter(query)
+
+    return mirrors.distinct()
+
+
+@login_required
+def mirror_bulk_action(request):
+    """Handle bulk actions on mirrors."""
+    if request.method != 'POST':
+        return redirect('repos:mirror_list')
+
+    action = request.POST.get('action', '')
+    select_all_filtered = request.POST.get('select_all_filtered') == '1'
+    filter_params = request.POST.get('filter_params', '')
+
+    if not action:
+        messages.warning(request, 'Please select an action')
+        if filter_params:
+            return redirect(f"{reverse('repos:mirror_list')}?{filter_params}")
+        return redirect('repos:mirror_list')
+
+    if select_all_filtered:
+        mirrors = _get_filtered_mirrors(filter_params)
+    else:
+        selected_ids = request.POST.getlist('selected_ids')
+        if not selected_ids:
+            messages.warning(request, 'No mirrors selected')
+            if filter_params:
+                return redirect(f"{reverse('repos:mirror_list')}?{filter_params}")
+            return redirect('repos:mirror_list')
+        mirrors = Mirror.objects.filter(id__in=selected_ids)
+
+    count = mirrors.count()
+    name = Mirror._meta.verbose_name if count == 1 else Mirror._meta.verbose_name_plural
+
+    if action == 'edit':
+        if count != 1:
+            messages.warning(request, 'Please select exactly one mirror to edit')
+            if filter_params:
+                return redirect(f"{reverse('repos:mirror_list')}?{filter_params}")
+            return redirect('repos:mirror_list')
+        mirror = mirrors.first()
+        return redirect('repos:mirror_edit', mirror_id=mirror.id)
+    elif action == 'enable':
+        mirrors.update(enabled=True)
+        messages.success(request, f'Enabled {count} {name}')
+    elif action == 'disable':
+        mirrors.update(enabled=False)
+        messages.success(request, f'Disabled {count} {name}')
+    elif action == 'enable_refresh':
+        mirrors.update(refresh=True)
+        messages.success(request, f'Enabled refresh for {count} {name}')
+    elif action == 'disable_refresh':
+        mirrors.update(refresh=False)
+        messages.success(request, f'Disabled refresh for {count} {name}')
+    elif action == 'delete':
+        mirrors.delete()
+        messages.success(request, f'Deleted {count} {name}')
+    else:
+        messages.warning(request, 'Invalid action')
+
+    if filter_params:
+        return redirect(f"{reverse('repos:mirror_list')}?{filter_params}")
+    return redirect('repos:mirror_list')
+
+
 class RepositoryViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows repositories to be viewed or edited.
     """
-    queryset = Repository.objects.all()
+    queryset = Repository.objects.select_related('arch').all()
     serializer_class = RepositorySerializer
 
 
@@ -400,7 +596,7 @@ class MirrorViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows mirrors to be viewed or edited.
     """
-    queryset = Mirror.objects.all()
+    queryset = Mirror.objects.select_related('repo').all()
     serializer_class = MirrorSerializer
 
 
@@ -408,5 +604,5 @@ class MirrorPackageViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows mirror packages to be viewed or edited.
     """
-    queryset = MirrorPackage.objects.all()
+    queryset = MirrorPackage.objects.select_related('mirror', 'package').all()
     serializer_class = MirrorPackageSerializer

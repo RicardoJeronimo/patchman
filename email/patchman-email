@@ -1,23 +1,33 @@
 #!/bin/bash
 
-email() {
-    SENDER=$(getConfig General sender)
+checkDependencies() {
+    dependencies=("mysql" "patchman" "sendmail" "uuencode" "uuidgen" "weasyprint")
 
-    if [ -n "$SENDER" ]; then
-        RECIPIENT=$(getConfig "$1" recipient)
+    for dep in "${dependencies[@]}"; do
+        if [ ! "$(command -v "$dep")" ]; then
+            fatal "[ERROR] Command $dep not installed."
+        fi
+    done
+}
+
+email() {
+    sender=$(getConfig General sender)
+
+    if [ -n "$sender" ]; then
+        recipient=$(getConfig "$1" recipient)
     
-        if [ -n "$RECIPIENT" ]; then
-            ATTACHMENTS=()
-            BOUNDARY=$(uuidgen)
-            CC=$(getConfig "$1" cc)
-            BCC=$(getConfig "$1" bcc)
-            FULLNAME=$(getConfig General fullname)
-            SUBJECT=$(echo "[$1] $(getConfig General subject)" | base64)
+        if [ -n "$recipient" ]; then
+            attachments=()
+            boundary=$(uuidgen)
+            cc=$(getConfig "$1" cc)
+            bcc=$(getConfig "$1" bcc)
+            fullname=$(getConfig General fullname)
+            subject=$(echo "[$1] $(getConfig General subject)" | base64)
 
             if [ -s "$custom_html" ]; then
-                BODY=$(cat $custom_html)
+                body=$(cat $custom_html)
             else
-                BODY="<html><style>
+                body="<html><style>
                     body { font-family: \"Calibri\" }
                     hr { border: 0; height: 1px; background: #333 }
                     #info { font-size: 1em }
@@ -38,37 +48,37 @@ email() {
             fi
 
             if [ -z "$2" ]; then
-                mapfile -t ATTACHMENTS < <(ls "$DIR"/"$1"/*-"$DATE".pdf)
+                mapfile -t attachments < <(ls "$dir"/"$1"/*-"$date".pdf)
             else
-                mapfile -t ATTACHMENTS < <(ls "$DIR"/"$1"/"$2"-"$DATE".pdf)
+                mapfile -t attachments < <(ls "$dir"/"$1"/"$2"-"$date".pdf)
             fi
             
             echo "$(date '+%d/%m/%Y %R') [INFO] $1: E-mailing report..."
             
-            (echo "From: $FULLNAME"
-            echo "To: $RECIPIENT"
-            echo "Cc: $CC"
-            echo "Bcc: $BCC"
-            echo "Subject: =?UTF-8?B?$SUBJECT?="
+            (echo "From: $fullname"
+            echo "To: $recipient"
+            echo "Cc: $cc"
+            echo "Bcc: $bcc"
+            echo "Subject: =?UTF-8?B?$subject?="
             echo "MIME-Version: 1.0"
-            echo "Content-Type: multipart/mixed; boundary=\"$BOUNDARY\""
+            echo "Content-Type: multipart/mixed; boundary=\"$boundary\""
             echo ""
-            echo "--$BOUNDARY"
+            echo "--$boundary"
             echo "Content-Type: text/html; charset=UTF-8"
             echo "Content-Disposition: inline"
             echo ""
-            echo "$BODY"
-            for ATTACH in "${ATTACHMENTS[@]}"; do
+            echo "$body"
+            for attach in "${attachments[@]}"; do
                 echo ""
-                echo "--$BOUNDARY"
+                echo "--$boundary"
                 echo "Content-Type: text/html;"
                 echo "Content-Transfer-Encoding: uuencode"
-                echo "Content-Disposition: attachment; filename=\"$(basename "$ATTACH")\""
+                echo "Content-Disposition: attachment; filename=\"$(basename "$attach")\""
                 echo ""
-                uuencode "$ATTACH" "$(basename "$ATTACH")"
+                uuencode "$attach" "$(basename "$attach")"
             done
-            echo "--$BOUNDARY--"
-            ) | /usr/sbin/sendmail -t -f "$SENDER"
+            echo "--$boundary--"
+            ) | /usr/sbin/sendmail -t -f "$sender"
             
             if [ $? -eq 0 ]; then
                 echo "$(date '+%d/%m/%Y %R') [SUCCESS] $1: E-mail report sent."
@@ -90,7 +100,7 @@ fatal() {
 
 getConfig() {
     # Gets the configuration of section $1, parameter $2
-    val=$(sed -nr "/\[$1\]/,/\[/{/^(\W|)$2=/p}" $CONF)
+    val=$(sed -nr "/\[$1\]/,/\[/{/^(\W|)$2=/p}" $conf)
     echo ${val#$2=}
 }
 
@@ -125,29 +135,29 @@ getPackages() {
 
 report() {
     # Gets host info
-    HOST=$(patchman -lh -H "$1" | tail -n +2 | head -n -1 | sed 's/\x1b\[[0-9;]*m//g')
+    host=$(patchman -lh -H "$1" | tail -n +2 | head -n -1 | sed 's/\x1b\[[0-9;]*m//g')
     
     # Gets the number of updates available for the host
-    UPDATES=$(echo "$HOST" | awk -F ' : ' 'NR==10 { print $2 }')
+    updates=$(echo "$host" | awk -F ' : ' 'NR==10 { print $2 }')
     
-    if [ -z "$UPDATES" ]; then
+    if [ -z "$updates" ]; then
         echo "$(date '+%d/%m/%Y %R') [ERROR] $1: Hostname not found."
-    elif [ "$UPDATES" -gt 0 ]; then
+    elif [ "$updates" -gt 0 ]; then
         # Gets the hosts tags to determine the recipient and directory
-        TAG=$(echo "$HOST" | awk -F ' : ' 'NR==12 { print $2 }')
+        tag=$(echo "$host" | awk -F ' : ' 'NR==12 { print $2 }')
         
         # Creates the directory where the e-mail file will be stored, if it doesnt exist
-        mkdir -p "$DIR/$TAG"
-        FILE=$DIR/$TAG/$1-$DATE
+        mkdir -p "$dir/$tag"
+        file=$dir/$tag/$1-$date
         
         # Queries the database for available package updates
-        QUERY=$(getPackages "$1")
+        query=$(getPackages "$1")
         
         # Creates the report if it doesnt exist
-        if [ ! -f "$FILE.pdf" ]; then
-            echo "$(date '+%d/%m/%Y %R') [INFO] $TAG $1: Creating report..."
+        if [ ! -f "$file.pdf" ]; then
+            echo "$(date '+%d/%m/%Y %R') [INFO] $tag $1: Creating report..."
             
-            cat <<-EOF > "$FILE.html"
+            cat <<-EOF > "$file.html"
 			<html><style>
 			body { font-family: "Calibri" }
 			#details table { border-collapse: collapse; width: 20em; white-space: nowrap; }
@@ -158,23 +168,23 @@ report() {
 			@page { size: A4 landscape; }
 			</style><head><meta charset="UTF-8"></head><body>
 			<div id="details"><table>
-			$(echo "$HOST" | awk -F ' : ' 'NR==1 {print "<tr><th>"$1"</th></tr>"; next} NR==2 || NR==4 || NR==5 || NR==6 || NR==7 || NR==9 || NR==11 { print "<tr><th>"$1"</th><th>:&nbsp;</th><td>"$2"</td></tr>" }')
+			$(echo "$host" | awk -F ' : ' 'NR==1 {print "<tr><th>"$1"</th></tr>"; next} NR==2 || NR==4 || NR==5 || NR==6 || NR==7 || NR==9 || NR==11 { print "<tr><th>"$1"</th><th>:&nbsp;</th><td>"$2"</td></tr>" }')
 			</table></div><br>
 			<div id=\"updates\"><table>
 			<tr><th>Current Version</th><th>New Version</th><th>Type</th></tr>
-			$(echo "$QUERY" | sort -n | uniq | sed 's/[()]//g' | awk '{ print "<tr><td>"$1"</td><td>"$3"</td><td>"$4"</td></tr>" }')
+			$(echo "$query" | sort -n | uniq | sed 's/[()]//g' | awk '{ print "<tr><td>"$1"</td><td>"$3"</td><td>"$4"</td></tr>" }')
 			</table></div><br>
 			</body></html>
 			EOF
 
-            if weasyprint "$FILE.html" "$FILE.pdf"; then
-                rm "$FILE.html"
+            if weasyprint "$file.html" "$file.pdf"; then
+                rm "$file.html"
             fi
         else
-            echo "$(date '+%d/%m/%Y %R') [INFO] $TAG $1: Report exists, skipping."
+            echo "$(date '+%d/%m/%Y %R') [INFO] $tag $1: Report exists, skipping."
         fi
     else
-        echo "$(date '+%d/%m/%Y %R') [INFO] $TAG $1: There are no updates available."
+        echo "$(date '+%d/%m/%Y %R') [INFO] $tag $1: There are no updates available."
     fi
 }
 
@@ -187,75 +197,76 @@ usage() {
     echo "-h: Shows this help message and exits"
 }
 
+proc=$$
+trap 'exit 1' SIGUSR1
+
+checkDependencies
+
 # Checks if there are any parameters and if they start with "-"
 if [ $# -gt 0 ] && [[ $1 == -* ]]; then
-    CONF="/etc/patchman/patchman-email.conf"
+    conf="/etc/patchman/patchman-email.conf"
     custom_html="/etc/patchman/patchman-email.html"
     
     # Database credentials configured in /etc/patchman/local_settings.py
     mysql_db=$(grep -E "'NAME'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
     mysql_user=$(grep -E "'USER'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
     mysql_pass=$(grep -E "'PASSWORD'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
-    mysql_host=$(grep -E "'HOST'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
+    mysql_host=$(grep -E "'host'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
     mysql_port=$(grep -E "'PORT'" /etc/patchman/local_settings.py | grep -v "^#" | sed -e "s/'\|,//g" | awk -F " " '{print $2}')
     
     while getopts 'aH:T:h' arg; do
         case $arg in
             a)
-                if [ ! -f $CONF ]; then
-                    echo "$(date '+%d/%m/%Y %R') [ERROR] Configuration file not found."
-                    exit 1
+                if [ ! -f $conf ]; then
+                    fatal "$(date '+%d/%m/%Y %R') [ERROR] Configuration file not found."
                 else
-                    DIR=$(getConfig General dir)
-                    DATE=$(date +%Y%m%d)
-                    HOSTS=()
-                    TAGS=()
-                    mapfile -t HOSTS < <(patchman -lh | tail -n +3 | awk -F ' : ' 'NR%16==1 { print $1 }' | tr -d ":" | sed 's/\x1b\[[0-9;]*m//g')
-                    mapfile -t TAGS < <(patchman -lh | tail -n +3 | awk -F ' : ' 'NR%16==12 { print $2 }' | sort -n | uniq | sed 's/\x1b\[[0-9;]*m//g')
+                    dir=$(getConfig General dir)
+                    date=$(date +%Y%m%d)
+                    hosts=()
+                    tags=()
+                    mapfile -t hosts < <(patchman -lh | tail -n +3 | awk -F ' : ' 'NR%16==1 { print $1 }' | tr -d ":" | sed 's/\x1b\[[0-9;]*m//g')
+                    mapfile -t tags < <(patchman -lh | tail -n +3 | awk -F ' : ' 'NR%16==12 { print $2 }' | sort -n | uniq | sed 's/\x1b\[[0-9;]*m//g')
                     
                     # Generate report
-                    for HOST in "${HOSTS[@]}"; do
-                        report "$HOST"
+                    for host in "${hosts[@]}"; do
+                        report "$host"
                     done
                     
                     # E-mails the report
-                    for TAG in "${TAGS[@]}"; do
-                        email "$TAG"
+                    for tag in "${tags[@]}"; do
+                        email "$tag"
                     done
                 fi
                 ;;
             H)
-                if [ ! -f $CONF ]; then
-                    echo "$(date '+%d/%m/%Y %R') [ERROR] Configuration file not found."
-                    exit 1
+                if [ ! -f $conf ]; then
+                    fatal "$(date '+%d/%m/%Y %R') [ERROR] Configuration file not found."
                 else
-                    DIR=$(getConfig General dir)
-                    DATE=$(date +%Y%m%d)
-                    HOST=${OPTARG}
+                    dir=$(getConfig General dir)
+                    date=$(date +%Y%m%d)
+                    host=${OPTARG}
                     
-                    report "$HOST"
-                    email "$TAG" "$HOST"
+                    report "$host"
+                    email "$tag" "$host"
                 fi
                 ;;
             T)
-                if [ ! -f $CONF ]; then
-                    echo "$(date '+%d/%m/%Y %R') [ERROR] Configuration file not found."
-                    exit 1
+                if [ ! -f $conf ]; then
+                    fatal "$(date '+%d/%m/%Y %R') [ERROR] Configuration file not found."
                 else
-                    DIR=$(getConfig General dir)
-                    DATE=$(date +%Y%m%d)
-                    HOSTS=()
-                    mapfile -t HOSTS < <(patchman -lh | tail -n +3 | awk -F ' : ' 'NR%16==1 {print $1; next} NR%16==12 {print $2}' | tr -d ":" | paste -d : - - | awk -F ':' '{ if( $2 == "'"${OPTARG}"'" ){ print $1 }}' | sed 's/\x1b\[[0-9;]*m//g')
+                    dir=$(getConfig General dir)
+                    date=$(date +%Y%m%d)
+                    hosts=()
+                    mapfile -t hosts < <(patchman -lh | tail -n +3 | awk -F ' : ' 'NR%16==1 {print $1; next} NR%16==12 {print $2}' | tr -d ":" | paste -d : - - | awk -F ':' '{ if( $2 == "'"${OPTARG}"'" ){ print $1 }}' | sed 's/\x1b\[[0-9;]*m//g')
                     
-                    if [ "${#HOSTS[@]}" -gt 0 ]; then
-                        for HOST in "${HOSTS[@]}"; do
-                            report "$HOST"
+                    if [ "${#hosts[@]}" -gt 0 ]; then
+                        for host in "${hosts[@]}"; do
+                            report "$host"
                         done
                         
-                        email "$TAG"
+                        email "$tag"
                     else
-                        echo "$(date '+%d/%m/%Y %R') [ERROR] ${OPTARG}: Tag not found."
-                        exit 1
+                        fatal "$(date '+%d/%m/%Y %R') [ERROR] ${OPTARG}: Tag not found."
                     fi
                 fi
                 ;;
