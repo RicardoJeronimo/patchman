@@ -134,13 +134,7 @@ def clean_tags():
     )
     tlen = tags.count()
     if tlen == 0:
-<<<<<<< HEAD
-        info_message.send(sender=None, text='No orphaned Tags found.')
-    else:
-        info_message.send(sender=None, text=f'{tlen} orphaned Tags found.')
-=======
         info_message(text='No orphaned Tags found.')
     else:
         info_message(text=f'{tlen} orphaned Tags found.')
->>>>>>> docker
         tags.delete()
