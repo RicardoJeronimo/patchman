@@ -34,7 +34,7 @@ from packages.utils import (
 from patchman.signals import pbar_start, pbar_update
 from repos.models import Mirror, MirrorPackage, Repository
 from repos.utils import get_or_create_repo
-from util.logging import debug_message, error_message, info_message
+from util.logging import debug_message, error_message, info_message, warning_message
 
 
 def process_repos(report, host):
@@ -242,6 +242,9 @@ def process_repo(r_type, r_name, r_id, r_priority, urls, arch):
     for r_url in urls:
         if r_type == Repository.GENTOO and r_url.startswith('rsync'):
             r_url = 'https://api.gentoo.org/mirrors/distfiles.xml'
+        if not r_url.startswith(('http://', 'https://')):
+            warning_message(text=f'Skipping non-http(s) mirror URL: {r_url}')
+            continue
         try:
             mirror = Mirror.objects.get(url=r_url.strip('/'))
         except Mirror.DoesNotExist:
@@ -259,7 +262,8 @@ def process_repo(r_type, r_name, r_id, r_priority, urls, arch):
         repository.repo_id = r_id
 
     for url in unknown:
-        Mirror.objects.create(repo=repository, url=url.rstrip('/'))
+        if url.startswith(('http://', 'https://')):
+            Mirror.objects.create(repo=repository, url=url.rstrip('/'))
 
     for mirror in Mirror.objects.filter(repo=repository).values('url'):
         mirror_url = mirror.get('url')

@@ -121,6 +121,8 @@ def get_url(url, headers=None, params=None, session=None):
         error_message(text=f'Too many redirects - {url}')
     except ConnectionError:
         error_message(text=f'Connection error - {url}')
+    except requests.exceptions.InvalidSchema:
+        error_message(text=f'Unsupported URL scheme - {url}')
     return response
 
 

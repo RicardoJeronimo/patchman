@@ -197,6 +197,9 @@ def check_for_mirrorlists(repo):
         Creates MAX_MIRRORS mirrors from list if so.
     """
     for mirror in repo.mirror_set.all():
+        if not mirror.url.startswith(('http://', 'https://')):
+            warning_message(text=f'Skipping non-http(s) mirror URL: {mirror.url}')
+            continue
         mirror_urls = get_mirrorlist_urls(mirror.url)
         if mirror_urls:
             mirror.mirrorlist = True
