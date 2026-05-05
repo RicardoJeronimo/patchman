@@ -34,7 +34,9 @@ from packages.utils import (
 from patchman.signals import pbar_start, pbar_update
 from repos.models import Mirror, MirrorPackage, Repository
 from repos.utils import get_or_create_repo
-from util.logging import debug_message, error_message, info_message, warning_message
+from util.logging import (
+    debug_message, error_message, info_message, warning_message,
+)
 
 
 def process_repos(report, host):
