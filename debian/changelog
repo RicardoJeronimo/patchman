@@ -1,3 +1,16 @@
+patchman (4.0.20-1) stable; urgency=medium
+
+  * django 5.2 compatibility updates
+  * fix zstd decompression for python 3.13+ stdlib compression.zstd
+  * skip decompression when content is already text
+  * change erratum synopsis from CharField(255) to TextField
+  * rename functions to match codebase style
+  * handle non-http(s) mirror urls gracefully
+  * escape filterlist values
+  * auto-commit to update version skip-checks: true
+
+ -- Marcus Furlong <furlongm@gmail.com>  Thu, 07 May 2026 01:05:41 +0000
+
 patchman (4.0.19-1) stable; urgency=medium
 
   [ dependabot[bot] ]
