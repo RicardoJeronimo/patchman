@@ -576,11 +576,14 @@ class Host(models.Model):
                     break
             if prefix is None or prefix in processed_prefixes:
                 continue
-            processed_prefixes.add(prefix)
 
-            # extract kernel series (e.g. '6.8') to avoid cross-track
-            # comparisons (GA 6.8 vs HWE 6.17 in the same repo)
+            # skip meta-packages (e.g. linux-image-generic) that have no series;
+            # the versioned package (e.g. linux-image-5.15.0-176-generic) will
+            # handle the update check and correctly filter cross-series packages
             installed_series = self.get_deb_kernel_series(pkg_name)
+            if installed_series is None:
+                continue
+            processed_prefixes.add(prefix)
 
             # build endswith filter for flavoured kernels
             name_filter = Q(
@@ -646,7 +649,12 @@ class HostRepo(models.Model):
     priority = models.IntegerField(default=0)
 
     class Meta:
-        unique_together = ['host', 'repo']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['host', 'repo'],
+                name='unique_hostrepo',
+            ),
+        ]
         ordering = ['host', 'repo']
 
     def __str__(self):

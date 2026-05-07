@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Patchman. If not, see <http://www.gnu.org/licenses/>
 
+from html import escape
 from operator import itemgetter
 
 from django.db.models.query import QuerySet
@@ -70,7 +71,7 @@ class Filter:
                 style = 'list-group-item-success'
             qs[self.name] = k
             output += f'<a href="{get_query_string(qs)}" class='
-            output += f'"list-group-item {style}">{v}</a>\n'
+            output += f'"list-group-item {style}">{escape(str(v))}</a>\n'
         output += '</div></div></div>'
         return output
 
