@@ -35,6 +35,7 @@ RUN apt-get -y update && apt-get -y upgrade && \
     apt-get install -y --no-install-recommends \
         apache2 \
         git \
+        gosu \
         libapache2-mod-wsgi-py3 \
         libmagic1 \
         mariadb-client \
@@ -55,6 +56,7 @@ COPY --from=builder /etc/patchman/ /etc/patchman/
 COPY --from=builder ${PATCHMAN_HOME}/ ${PATCHMAN_HOME}/
 
 RUN cp ${PATCHMAN_HOME}/etc/patchman/apache.conf.example /etc/apache2/sites-available/patchman.conf && \
+    echo "ServerName localhost" >> /etc/apache2/apache2.conf && \
     a2enmod wsgi && \
     a2ensite patchman && \
     a2dissite 000-default && \
