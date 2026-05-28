@@ -34,6 +34,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get -y update && apt-get -y upgrade && \
     apt-get install -y --no-install-recommends \
         apache2 \
+        curl \
         git \
         gosu \
         libapache2-mod-wsgi-py3 \
