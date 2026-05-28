@@ -33,7 +33,7 @@ class Erratum(models.Model):
     name = models.CharField(max_length=255, unique=True)
     e_type = models.CharField(max_length=255)
     issue_date = models.DateTimeField()
-    synopsis = models.CharField(max_length=255)
+    synopsis = models.TextField()
     affected_packages = models.ManyToManyField(Package, blank=True, related_name='affected_by_erratum')
     fixed_packages = models.ManyToManyField(Package, blank=True, related_name='provides_fix_in_erratum')
     from operatingsystems.models import OSRelease
@@ -91,15 +91,16 @@ class Erratum(models.Model):
                     error_message(text=e)
                     update.delete()
 
-    def fetch_osv_dev_data(self):
+    def fetch_osv_dev_data(self, session=None):
+        """ Fetch osv.dev JSON for this erratum. Returns parsed JSON or None.
+        """
         osv_dev_url = f'https://api.osv.dev/v1/vulns/{self.name}'
-        res = get_url(osv_dev_url)
+        res = get_url(osv_dev_url, session=session)
+        if res is None:
+            return None
         if res.status_code == 404:
-            error_message(text=f'404 - Skipping {self.name} - {osv_dev_url}')
-            return
-        data = res.content
-        osv_dev_json = json.loads(data)
-        self.parse_osv_dev_data(osv_dev_json)
+            return None
+        return json.loads(res.content)
 
     def parse_osv_dev_data(self, osv_dev_json):
         from django.db.models import Q
