@@ -179,7 +179,6 @@ if [ ! -f /var/lib/patchman/.firstrun ]; then
     log "Initialisation complete."
 fi
 
-log "Dropping privileges to www-data..."
 if [ "${USE_CELERY:-false}" = true ]; then
     log "Starting Celery worker as www-data..."
 
