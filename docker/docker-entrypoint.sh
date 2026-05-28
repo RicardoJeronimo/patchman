@@ -8,8 +8,6 @@ die()  { echo "[ERROR] $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; exit 1; }
 conf="/etc/patchman/local_settings.py"
 [ -f "$conf" ] || die "Configuration file not found: $conf"
 
-log "Starting Patchman configuration..."
-
 # Configure DEBUG
 if [ "${DEBUG:-false}" = true ]; then
     log "DEBUG mode enabled."
@@ -180,7 +178,7 @@ if [ ! -f /var/lib/patchman/.firstrun ]; then
 fi
 
 if [ "${USE_CELERY:-false}" = true ]; then
-    log "Starting Celery worker as www-data..."
+    log "Starting Celery worker..."
 
     if [ -z "$(grep "USE_ASYNC_PROCESSING" "$conf" | cut -d " " -f 3 | tr -d "'")" ]; then 
         echo "" >> "$conf"
