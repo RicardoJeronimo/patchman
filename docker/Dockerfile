@@ -71,4 +71,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 80
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost/patchman/ || exit 1
+
 ENTRYPOINT ["docker-entrypoint.sh"]
