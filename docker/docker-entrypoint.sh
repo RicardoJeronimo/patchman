@@ -12,7 +12,7 @@ log "Starting Patchman configuration..."
 
 # Configure DEBUG
 if [ "${DEBUG:-false}" = true ]; then
-    log "DEBUG mode enabled"
+    log "DEBUG mode enabled."
     sed -i '3 {s/False/True/}' "$conf"
 fi
 
@@ -32,14 +32,14 @@ if [ -n "${DB_ENGINE:-}" ]; then
     if [[ $(grep -v "#" "$conf" | grep -c "ENGINE") -lt 2 ]]; then
         case "${DB_ENGINE}" in
             SQLite)
-            log "Using SQLite database"
+            log "Using SQLite database."
             ;;
             MySQL)
                 dbPort="${DB_PORT:-3306}"
                 [ -n "${DB_DATABASE:-}" ] || die "DB_DATABASE is required for MySQL"
                 [ -n "${DB_USER:-}" ]     || die "DB_USER is required for MySQL"
                 [ -n "${DB_HOST:-}" ]     || die "DB_HOST is required for MySQL"
-                log "Configuring MySQL database at ${DB_HOST}:${dbPort}"
+                log "Configuring MySQL database at ${DB_HOST}:${dbPort}."
 
                 cat <<-EOF >> "$conf"
 
@@ -63,7 +63,7 @@ if [ -n "${DB_ENGINE:-}" ]; then
                 [ -n "${DB_DATABASE:-}" ] || die "DB_DATABASE is required for PostgreSQL"
                 [ -n "${DB_USER:-}" ]     || die "DB_USER is required for PostgreSQL"
                 [ -n "${DB_HOST:-}" ]     || die "DB_HOST is required for PostgreSQL"
-                log "Configuring PostgreSQL database at ${DB_HOST}:${dbPort}"
+                log "Configuring PostgreSQL database at ${DB_HOST}:${dbPort}."
 
                 cat <<-EOF >> "$conf"
 
@@ -150,22 +150,25 @@ redisHost="${REDIS_HOST:-127.0.0.1}"
 redisPort="${REDIS_PORT:-6379}"
 
 if [ "${USE_CACHE:-false}" = true ]; then
-    log "Configuring Redis cache at ${redisHost}:${redisPort}"
+    log "Configuring Redis cache at ${redisHost}:${redisPort}."
     sed -i "62 {s/127.0.0.1:6379/$redisHost:$redisPort/}" "$conf"
 
     if [ -n "${CACHE_TIMEOUT:-}" ]; then
         sed -i "67 {s/0/${CACHE_TIMEOUT}/}" "$conf"
     fi
 else
-    log "Cache disabled, using DummyCache"
+    log "Cache disabled, using DummyCache."
     sed -i '61 {s/redis.RedisCache/dummy.DummyCache/}' "$conf"
     sed -i '62 {/^#/ ! s/\(.*\)/#\1/}' "$conf"
 fi
 
 if [ ! -f /var/lib/patchman/.firstrun ]; then
     log "First run detected, initialising database..."
+    log "Running makemigrations..."
     patchman-manage makemigrations
+    log "Running migrate..."
     patchman-manage migrate --run-syncdb --fake-initial
+    log "Running collectstatic..."
     patchman-manage collectstatic --noinput
 
     if [ -z "${DB_ENGINE:-}" ]; then
@@ -178,7 +181,7 @@ fi
 
 log "Dropping privileges to www-data..."
 if [ "${USE_CELERY:-false}" = true ]; then
-    log "Starting Celery worker..."
+    log "Starting Celery worker as www-data..."
 
     if [ -z "$(grep "USE_ASYNC_PROCESSING" "$conf" | cut -d " " -f 3 | tr -d "'")" ]; then 
         echo "" >> "$conf"
