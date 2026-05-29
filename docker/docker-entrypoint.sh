@@ -160,6 +160,7 @@ else
     sed -i '62 {/^#/ ! s/\(.*\)/#\1/}' "$conf"
 fi
 
+# Sync database on container first start
 if [ ! -f /var/lib/patchman/.firstrun ]; then
     log "First run detected, initialising database..."
     log "Running makemigrations..."
