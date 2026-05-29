@@ -6,7 +6,7 @@ warn() { echo "[WARN]  $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; }
 die()  { echo "[ERROR] $(date -u '+%Y-%m-%dT%H:%M:%SZ') $*" >&2; exit 1; }
 
 conf="/etc/patchman/local_settings.py"
-[ -f "$conf" ] || die "Configuration file not found: $conf"
+[ -f "$conf" ] || die "Configuration file not found: $conf."
 
 # Configure DEBUG
 if [ "${DEBUG:-false}" = true ]; then
@@ -34,9 +34,9 @@ if [ -n "${DB_ENGINE:-}" ]; then
             ;;
             MySQL)
                 dbPort="${DB_PORT:-3306}"
-                [ -n "${DB_DATABASE:-}" ] || die "DB_DATABASE is required for MySQL"
-                [ -n "${DB_USER:-}" ]     || die "DB_USER is required for MySQL"
-                [ -n "${DB_HOST:-}" ]     || die "DB_HOST is required for MySQL"
+                [ -n "${DB_DATABASE:-}" ] || die "DB_DATABASE is required for MySQL."
+                [ -n "${DB_USER:-}" ]     || die "DB_USER is required for MySQL."
+                [ -n "${DB_HOST:-}" ]     || die "DB_HOST is required for MySQL."
                 log "Configuring MySQL database at ${DB_HOST}:${dbPort}."
 
                 cat <<-EOF >> "$conf"
@@ -58,9 +58,9 @@ if [ -n "${DB_ENGINE:-}" ]; then
 
             PostgreSQL)
                 dbPort="${DB_PORT:-5432}"
-                [ -n "${DB_DATABASE:-}" ] || die "DB_DATABASE is required for PostgreSQL"
-                [ -n "${DB_USER:-}" ]     || die "DB_USER is required for PostgreSQL"
-                [ -n "${DB_HOST:-}" ]     || die "DB_HOST is required for PostgreSQL"
+                [ -n "${DB_DATABASE:-}" ] || die "DB_DATABASE is required for PostgreSQL."
+                [ -n "${DB_USER:-}" ]     || die "DB_USER is required for PostgreSQL."
+                [ -n "${DB_HOST:-}" ]     || die "DB_HOST is required for PostgreSQL."
                 log "Configuring PostgreSQL database at ${DB_HOST}:${dbPort}."
 
                 cat <<-EOF >> "$conf"
@@ -80,7 +80,7 @@ if [ -n "${DB_ENGINE:-}" ]; then
             ;;
 
             *)
-                die "Invalid DB_ENGINE: '${DB_ENGINE}'" 
+                die "Invalid DB_ENGINE: '${DB_ENGINE}'." 
                 ;;
         esac
     fi
