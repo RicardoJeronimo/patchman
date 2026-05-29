@@ -1,3 +1,26 @@
+patchman (4.0.21-1) stable; urgency=medium
+
+  [ dependabot[bot] ]
+  * Bump gitpython from 3.1.47 to 3.1.49
+
+  [ Marcus Furlong ]
+  * use gpg file with both keys on all distros
+  * handle backported stable releases
+
+  [ dependabot[bot] ]
+  * Bump gitpython from 3.1.49 to 3.1.50
+  * update installation docs
+  * fix tz and local_settings getting overwritten
+
+  [ Gedminas, Marius ]
+  * Use underscore names in setup.cfg
+  * Use SPDX license expression in setup.py
+
+  [ Marcus Furlong ]
+  * auto-commit to update version skip-checks: true
+
+ -- Marcus Furlong <furlongm@gmail.com>  Fri, 29 May 2026 05:33:43 +0000
+
 patchman (4.0.20-1) stable; urgency=medium
 
   * django 5.2 compatibility updates
