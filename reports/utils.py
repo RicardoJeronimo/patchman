@@ -34,7 +34,9 @@ from packages.utils import (
 from patchman.signals import pbar_start, pbar_update
 from repos.models import Mirror, MirrorPackage, Repository
 from repos.utils import get_or_create_repo
-from util.logging import debug_message, error_message, info_message
+from util.logging import (
+    debug_message, error_message, info_message, warning_message,
+)
 
 
 def process_repos(report, host):
@@ -216,7 +218,7 @@ def parse_repos(repos_string):
     return repos
 
 
-def _get_repo_type(type_str):
+def get_repo_type(type_str):
     """ Convert repo type string to Repository constant
     """
     type_str = type_str.lower()
@@ -242,6 +244,9 @@ def process_repo(r_type, r_name, r_id, r_priority, urls, arch):
     for r_url in urls:
         if r_type == Repository.GENTOO and r_url.startswith('rsync'):
             r_url = 'https://api.gentoo.org/mirrors/distfiles.xml'
+        if not r_url.startswith(('http://', 'https://')):
+            warning_message(text=f'Skipping non-http(s) mirror URL: {r_url}')
+            continue
         try:
             mirror = Mirror.objects.get(url=r_url.strip('/'))
         except Mirror.DoesNotExist:
@@ -259,7 +264,8 @@ def process_repo(r_type, r_name, r_id, r_priority, urls, arch):
         repository.repo_id = r_id
 
     for url in unknown:
-        Mirror.objects.create(repo=repository, url=url.rstrip('/'))
+        if url.startswith(('http://', 'https://')):
+            Mirror.objects.create(repo=repository, url=url.rstrip('/'))
 
     for mirror in Mirror.objects.filter(repo=repository).values('url'):
         mirror_url = mirror.get('url')
@@ -364,7 +370,7 @@ def parse_packages(packages_string):
     return packages
 
 
-def _get_package_type(type_str):
+def get_package_type(type_str):
     """ Convert package type string to Package constant
     """
     type_str = type_str.lower() if type_str else ''
@@ -398,7 +404,7 @@ def process_package_text(pkg):
     rel = pkg[3] if pkg[3] else ''
     arch = pkg[4] if pkg[4] else 'unknown'
 
-    p_type = _get_package_type(pkg[5])
+    p_type = get_package_type(pkg[5])
     p_category = pkg[6] if p_type == Package.GENTOO and len(pkg) > 6 else None
     p_repo = pkg[7] if p_type == Package.GENTOO and len(pkg) > 7 else None
 
@@ -413,7 +419,7 @@ def process_package_json(pkg):
     ver = pkg.get('version', '')
     rel = pkg.get('release', '')
     arch = pkg.get('arch', 'unknown')
-    p_type = _get_package_type(pkg.get('type', ''))
+    p_type = get_package_type(pkg.get('type', ''))
     p_category = pkg.get('category') if p_type == Package.GENTOO else None
     p_repo = pkg.get('repo') if p_type == Package.GENTOO else None
 
@@ -453,7 +459,7 @@ def process_packages_json(packages_json, host):
 def process_repo_json(repo, arch):
     """ Processes a single JSON repo dict and converts to a repo object
     """
-    r_type = _get_repo_type(repo.get('type', ''))
+    r_type = get_repo_type(repo.get('type', ''))
     if r_type is None:
         return None, 0
 

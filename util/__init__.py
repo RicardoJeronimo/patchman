@@ -101,7 +101,7 @@ def fetch_content(response, text='', ljust=35):
     wait=wait_exponential(multiplier=1, min=1, max=10),
     reraise=False,
 )
-def get_url(url, headers=None, params=None):
+def get_url(url, headers=None, params=None, session=None):
     """ Perform a http GET on a URL. Return None on error.
     """
     response = None
@@ -109,9 +109,10 @@ def get_url(url, headers=None, params=None):
         headers = {}
     if not params:
         params = {}
+    requester = session or requests
     try:
         debug_message(text=f'Trying {url} headers:{headers} params:{params}')
-        response = requests.get(url, headers=headers, params=params, stream=True, proxies=proxies, timeout=30)
+        response = requester.get(url, headers=headers, params=params, stream=True, proxies=proxies, timeout=30)
         debug_message(text=f'{response.status_code}: {response.headers}')
         if response.status_code in [403, 404]:
             return response
@@ -120,6 +121,8 @@ def get_url(url, headers=None, params=None):
         error_message(text=f'Too many redirects - {url}')
     except ConnectionError:
         error_message(text=f'Connection error - {url}')
+    except requests.exceptions.InvalidSchema:
+        error_message(text=f'Unsupported URL scheme - {url}')
     return response
 
 
@@ -193,16 +196,18 @@ def unzstd(contents):
     """ unzstd contents in memory and return the data
     """
     try:
-        zstddata = zstd.ZstdDecompressor().stream_reader(contents).read()
-        return zstddata
-    except zstd.ZstdError as e:
+        if hasattr(zstd, 'decompress'):
+            return zstd.decompress(contents)
+        return zstd.ZstdDecompressor().stream_reader(contents).read()
+    except (zstd.ZstdError, Exception) as e:
         error_message(text=f'zstd: {e}')
 
 
 def extract(data, fmt):
     """ Extract the contents based on mimetype or file ending. Return the
         unmodified data if neither mimetype nor file ending matches, otherwise
-        return the extracted contents.
+        return the extracted contents. Falls back to unmodified data if
+        decompression fails (e.g. requests already decompressed the content).
     """
     try:
         mime = magic.from_buffer(data, mime=True)
@@ -211,14 +216,19 @@ def extract(data, fmt):
         m = magic.open(magic.MAGIC_MIME)
         m.load()
         mime = m.buffer(data).split(';')[0]
+    if mime.startswith('text/'):
+        return data
+    extracted = None
     if mime == 'application/zstd' or fmt.endswith('zst'):
-        return unzstd(data)
-    if mime == 'application/x-xz' or fmt.endswith('xz'):
-        return unxz(data)
+        extracted = unzstd(data)
+    elif mime == 'application/x-xz' or fmt.endswith('xz'):
+        extracted = unxz(data)
     elif mime == 'application/x-bzip2' or fmt.endswith('bz2'):
-        return bunzip2(data)
+        extracted = bunzip2(data)
     elif mime == 'application/gzip' or fmt.endswith('gz'):
-        return gunzip(data)
+        extracted = gunzip(data)
+    if extracted is not None:
+        return extracted
     return data
 
 
@@ -297,3 +307,47 @@ def get_datetime_now():
     """ Return the current timezone-aware datetime removing microseconds
     """
     return datetime.now().astimezone().replace(microsecond=0)
+
+
+def fetch_concurrently(func, items, max_workers=25):
+    """ Run func across items using threads with pooled HTTP sessions,
+        yielding results as they complete. Ideal for I/O-bound work
+        (network fetches). func(item, session) receives a shared
+        requests.Session with connection pooling.
+    """
+    import concurrent.futures
+
+    from requests.adapters import HTTPAdapter
+
+    session = requests.Session()
+    adapter = HTTPAdapter(pool_connections=max_workers, pool_maxsize=max_workers)
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    items = list(items)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(func, item, session): item for item in items}
+        for future in concurrent.futures.as_completed(futures):
+            yield future.result()
+
+
+def run_concurrently(func, items, max_workers=25):
+    """ Run func across items using multiprocessing, yielding results as
+        they complete. Uses multiprocessing.Pool on Python < 3.12 to avoid
+        ProcessPoolExecutor deadlock (CPython #105829).
+    """
+    import concurrent.futures
+    import multiprocessing
+    import sys
+
+    from django.db import connections
+    connections.close_all()
+    items = list(items)
+    if sys.version_info >= (3, 12):
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(func, item) for item in items]
+            for future in concurrent.futures.as_completed(futures):
+                yield future.result()
+    else:
+        with multiprocessing.Pool(processes=max_workers) as pool:
+            for result in pool.imap_unordered(func, items, chunksize=1):
+                yield result
